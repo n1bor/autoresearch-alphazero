@@ -223,6 +223,7 @@ MODEL_DIR    = os.path.join(ROOT_DIR, 'data', 'model_data')
 
 LR           = 0.0003
 BATCH_SIZE   = 192
+SMOOTH_EPS   = 0.05  # label smoothing on policy targets
 
 RUN_ID       = 1     # included in saved model filename
 
@@ -258,13 +259,13 @@ for p in ema_net.parameters():
 ema_net.eval()
 
 WARMUP_STEPS = 5
-SGDR_T0      = 442  # two equal cycles of 442 steps after warmup (~889 total steps)
+T_MAX        = 800  # tuned for 7 blocks; 6 blocks may need updating after this run
 
 criterion  = AlphaLoss().to(device)
 optimizer  = optim.AdamW(net.parameters(), lr=LR, weight_decay=0.0005, betas=(0.9, 0.995))
 scheduler  = optim.lr_scheduler.SequentialLR(optimizer, schedulers=[
     optim.lr_scheduler.LinearLR(optimizer, start_factor=0.1, end_factor=1.0, total_iters=WARMUP_STEPS),
-    optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=SGDR_T0, T_mult=1, eta_min=LR * 0.1),
+    optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_MAX - WARMUP_STEPS, eta_min=LR * 0.1),
 ], milestones=[WARMUP_STEPS])
 train_iter = make_dataloader(TRAIN_DIR, BATCH_SIZE, pin_memory=cuda)
 
@@ -294,7 +295,8 @@ while True:
 
     optimizer.zero_grad()
     policy_pred, value_pred = net(state)
-    loss = criterion(value_pred[:, 0], value, policy_pred, policy)
+    policy_smooth = policy * (1.0 - SMOOTH_EPS) + SMOOTH_EPS / policy.size(1)
+    loss = criterion(value_pred[:, 0], value, policy_pred, policy_smooth)
     loss.backward()
     optimizer.step()
     scheduler.step()
