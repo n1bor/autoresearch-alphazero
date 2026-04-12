@@ -86,24 +86,33 @@ def make_dataloader(train_path, batch_size, pin_memory=False):
 # ---------------------------------------------------------------------------
 
 TIME_BUDGET      = 300  # training time in seconds (wall clock, excluding startup/compilation)
+EVAL_FILES       = 1    # number of validation files to evaluate over (increase on GPU)
+
 @torch.no_grad()
 def evaluate_loss(net, device, batch_size, validate_path):
     """
-    Average AlphaLoss over a single randomly chosen validation file.
+    Average AlphaLoss over EVAL_FILES randomly chosen validation files.
     Loss = MSE(value) + cross_entropy(policy).
     Returns NaN if no validation data is available.
     """
-    files = [os.path.join(validate_path, f)
-             for f in os.listdir(validate_path) if f.endswith('.gz')]
-    if not files:
+    all_files = [os.path.join(validate_path, f)
+                 for f in os.listdir(validate_path) if f.endswith('.gz')]
+    if not all_files:
         print(f"[{ts()}][eval] no .gz files in {validate_path}, skipping", flush=True)
         return float('nan')
 
-    file = random.Random(42).choice(files)
-    print(f"[{ts()}][eval] evaluating on {os.path.basename(file)}...", flush=True)
+    files = random.Random(42).sample(all_files, min(EVAL_FILES, len(all_files)))
+    print(f"[{ts()}][eval] evaluating on {len(files)} file(s)...", flush=True)
 
-    with open(file, 'rb') as fo:
-        data = pickle.load(fo)
+    data = []
+    for file in files:
+        with open(file, 'rb') as fo:
+            try:
+                data.extend(pickle.load(fo))
+            except EOFError:
+                continue
+    if not data:
+        return float('nan')
     data = np.array(data, dtype="object")
 
     net.eval()

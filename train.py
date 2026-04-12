@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-from prepare import make_dataloader, evaluate_loss, ts, TIME_BUDGET
+from prepare import make_dataloader, evaluate_loss, ts, TIME_BUDGET, EVAL_FILES
 
 
 # ---------------------------------------------------------------------------
@@ -165,7 +165,7 @@ train_iter = make_dataloader(TRAIN_DIR, BATCH_SIZE, pin_memory=cuda)
 
 state, policy, value = next(train_iter)  # prefetch first batch
 
-print(f"[{ts()}] Time budget: {TIME_BUDGET}s  batch_size: {BATCH_SIZE}  lr: {LR}", flush=True)
+print(f"[{ts()}] Time budget: {TIME_BUDGET}s  batch_size: {BATCH_SIZE}  lr: {LR}  eval_files: {EVAL_FILES}", flush=True)
 
 # ---------------------------------------------------------------------------
 # Training loop
