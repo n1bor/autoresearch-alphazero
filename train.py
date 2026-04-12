@@ -251,7 +251,7 @@ num_params = sum(p.numel() for p in net.parameters())
 print(f"[{ts()}] Parameters: {num_params/1e6:.1f}M", flush=True)
 
 WARMUP_STEPS = 5
-T_MAX        = 800  # sweet spot: 565→800 improved, 1200 too warm (worse)
+T_MAX        = 1000  # re-tune T_MAX with shuffle active — prior optimum was 800 without shuffle
 
 criterion  = AlphaLoss().to(device)
 optimizer  = optim.AdamW(net.parameters(), lr=LR, weight_decay=0.0005)
