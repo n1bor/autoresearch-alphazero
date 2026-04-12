@@ -247,8 +247,15 @@ if cuda:
 num_params = sum(p.numel() for p in net.parameters())
 print(f"[{ts()}] Parameters: {num_params/1e6:.1f}M", flush=True)
 
+WARMUP_STEPS = 10
+T_MAX        = 86   # approximate total steps for cosine decay
+
 criterion  = AlphaLoss().to(device)
-optimizer  = optim.Adam(net.parameters(), lr=LR)
+optimizer  = optim.AdamW(net.parameters(), lr=LR, weight_decay=0.001)
+scheduler  = optim.lr_scheduler.SequentialLR(optimizer, schedulers=[
+    optim.lr_scheduler.LinearLR(optimizer, start_factor=0.1, end_factor=1.0, total_iters=WARMUP_STEPS),
+    optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_MAX - WARMUP_STEPS, eta_min=LR * 0.1),
+], milestones=[WARMUP_STEPS])
 train_iter = make_dataloader(TRAIN_DIR, BATCH_SIZE, pin_memory=cuda)
 
 state, policy, value = next(train_iter)  # prefetch first batch
@@ -280,6 +287,7 @@ while True:
     loss = criterion(value_pred[:, 0], value, policy_pred, policy)
     loss.backward()
     optimizer.step()
+    scheduler.step()
 
     loss_f = loss.item()
     roll_9  = 0.9  * roll_9  + 0.1  * loss_f
