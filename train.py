@@ -251,7 +251,7 @@ num_params = sum(p.numel() for p in net.parameters())
 print(f"[{ts()}] Parameters: {num_params/1e6:.1f}M", flush=True)
 
 WARMUP_STEPS = 5
-T_MAX        = 800  # larger T_MAX keeps LR higher longer — trend 304→565 all improved
+T_MAX        = 1200  # continue trend: 304→565→800 all improved, keep LR higher longer
 
 criterion  = AlphaLoss().to(device)
 optimizer  = optim.AdamW(net.parameters(), lr=LR, weight_decay=0.001)
