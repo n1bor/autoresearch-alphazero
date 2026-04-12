@@ -69,7 +69,7 @@ class OutBlock(nn.Module):
         v = F.relu(self.bn(self.conv(s)))
         v = v.view(-1, 8 * 8)
         v = F.relu(self.fc1(v))
-        v = F.tanh(self.fc2(v))
+        v = self.fc2(v)  # linear output — no tanh saturation, model can reach ±1 with finite weights
         p = F.relu(self.bn1(self.conv1(s)))
         p = p.view(-1, 8 * 8 * 32)
         p = self.logsoftmax(self.fc(p)).exp()
@@ -222,7 +222,7 @@ VALIDATE_DIR = os.path.join(ROOT_DIR, 'data', 'validate')
 MODEL_DIR    = os.path.join(ROOT_DIR, 'data', 'model_data')
 
 LR           = 0.0003
-BATCH_SIZE   = 160  # ~1075 steps vs 894 → 275 low-LR fine-tuning steps vs 94
+BATCH_SIZE   = 192
 
 RUN_ID       = 1     # included in saved model filename
 
