@@ -79,13 +79,13 @@ class ChessNet(nn.Module):
     def __init__(self):
         super().__init__()
         self.conv = ConvBlock()
-        for block in range(8):
+        for block in range(7):
             setattr(self, "res_%i" % block, ResBlock())
         self.outblock = OutBlock()
 
     def forward(self, s):
         s = self.conv(s)
-        for block in range(8):
+        for block in range(7):
             s = getattr(self, "res_%i" % block)(s)
         return self.outblock(s)
 
@@ -220,7 +220,7 @@ TRAIN_DIR    = os.path.join(ROOT_DIR, 'data', 'trainOld')
 VALIDATE_DIR = os.path.join(ROOT_DIR, 'data', 'validate')
 MODEL_DIR    = os.path.join(ROOT_DIR, 'data', 'model_data')
 
-LR           = 0.0003
+LR           = 0.0004
 BATCH_SIZE   = 256
 
 RUN_ID       = 1     # included in saved model filename
