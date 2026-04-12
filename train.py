@@ -250,7 +250,7 @@ if cuda:
 num_params = sum(p.numel() for p in net.parameters())
 print(f"[{ts()}] Parameters: {num_params/1e6:.1f}M", flush=True)
 
-WARMUP_STEPS = 10
+WARMUP_STEPS = 5
 T_MAX        = 338  # approximate total steps for cosine decay (matches observed step count)
 
 criterion  = AlphaLoss().to(device)
