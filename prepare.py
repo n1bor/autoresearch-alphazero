@@ -87,9 +87,10 @@ def make_dataloader(train_path, batch_size, pin_memory=False):
 
 TIME_BUDGET      = 300  # training time in seconds (wall clock, excluding startup/compilation)
 EVAL_SAMPLES     = 50_000 if torch.cuda.is_available() else 5_000
+EVAL_BATCH_SIZE  = 256   # larger = faster eval; does not affect loss values
 
 @torch.no_grad()
-def evaluate_loss(net, device, batch_size, validate_path):
+def evaluate_loss(net, device, batch_size, validate_path):  # batch_size unused; eval uses EVAL_BATCH_SIZE
     """
     Average AlphaLoss over EVAL_SAMPLES samples drawn from the validation set.
     Loss = MSE(value) + cross_entropy(policy).
@@ -119,7 +120,7 @@ def evaluate_loss(net, device, batch_size, validate_path):
             except EOFError:
                 continue
         data   = np.array(data, dtype="object")
-        loader = DataLoader(board_data(data), batch_size=batch_size, shuffle=False, pin_memory=False)
+        loader = DataLoader(board_data(data), batch_size=EVAL_BATCH_SIZE, shuffle=False, pin_memory=False)
         for state, policy, value in loader:
             if total_samples >= EVAL_SAMPLES:
                 break
