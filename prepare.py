@@ -87,7 +87,7 @@ def make_dataloader(train_path, batch_size, pin_memory=False):
 
 TIME_BUDGET      = 300  # training time in seconds (wall clock, excluding startup/compilation)
 EVAL_SAMPLES     = 50_000 if torch.cuda.is_available() else 5_000
-EVAL_BATCH_SIZE  = 256   # larger = faster eval; does not affect loss values
+EVAL_BATCH_SIZE  = 3000  # larger = faster eval; does not affect loss values
 
 @torch.no_grad()
 def evaluate_loss(net, device, batch_size, validate_path):  # batch_size unused; eval uses EVAL_BATCH_SIZE
