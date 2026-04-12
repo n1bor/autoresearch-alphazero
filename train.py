@@ -4,6 +4,7 @@ Usage: uv run train.py
 """
 
 import os
+import copy
 import math
 import random
 import time
@@ -53,8 +54,10 @@ class ResBlock(nn.Module):
 class OutBlock(nn.Module):
     def __init__(self):
         super().__init__()
-        # Value head (global avg pool — all 192 channels, no spatial bottleneck)
-        self.fc1   = nn.Linear(192, 128)
+        # Value head
+        self.conv  = nn.Conv2d(192, 1, kernel_size=1)
+        self.bn    = nn.BatchNorm2d(1)
+        self.fc1   = nn.Linear(8 * 8, 128)
         self.fc2   = nn.Linear(128, 1)
         # Policy head
         self.conv1      = nn.Conv2d(192, 32, kernel_size=1)
@@ -63,7 +66,8 @@ class OutBlock(nn.Module):
         self.fc         = nn.Linear(8 * 8 * 32, 8 * 8 * 73)
 
     def forward(self, s):
-        v = s.mean(dim=[2, 3])         # global avg pool: (batch, 192)
+        v = F.relu(self.bn(self.conv(s)))
+        v = v.view(-1, 8 * 8)
         v = F.relu(self.fc1(v))
         v = F.tanh(self.fc2(v))
         p = F.relu(self.bn1(self.conv1(s)))
@@ -247,6 +251,12 @@ if cuda:
 num_params = sum(p.numel() for p in net.parameters())
 print(f"[{ts()}] Parameters: {num_params/1e6:.1f}M", flush=True)
 
+EMA_DECAY = 0.998
+ema_net = copy.deepcopy(net)
+for p in ema_net.parameters():
+    p.requires_grad_(False)
+ema_net.eval()
+
 WARMUP_STEPS = 5
 T_MAX        = 800  # tuned for 7 blocks; 6 blocks may need updating after this run
 
@@ -289,6 +299,12 @@ while True:
     optimizer.step()
     scheduler.step()
 
+    with torch.no_grad():
+        for ema_p, p in zip(ema_net.parameters(), net.parameters()):
+            ema_p.mul_(EMA_DECAY).add_(p, alpha=1.0 - EMA_DECAY)
+        for ema_b, b in zip(ema_net.buffers(), net.buffers()):
+            ema_b.copy_(b)
+
     loss_f = loss.item()
     roll_9  = 0.9  * roll_9  + 0.1  * loss_f
     roll_99 = 0.99 * roll_99 + 0.01 * loss_f
@@ -320,7 +336,7 @@ print()  # newline after \r
 net.eval()
 out_file = os.path.join(MODEL_DIR,
     f"model_{RUN_ID}_loss{roll_99:.2f}_{datetime.datetime.today().strftime('%Y-%m-%d-%H%M%S')}.gz")
-torch.save({'state_dict': net.state_dict()}, out_file)
+torch.save({'state_dict': ema_net.state_dict()}, out_file)
 shutil.copy(out_file, os.path.join(MODEL_DIR, "latest.gz"))
 print(f"[{ts()}] Saved to {out_file}", flush=True)
 
@@ -328,14 +344,14 @@ print(f"[{ts()}] Saved to {out_file}", flush=True)
 # Weight statistics
 # ---------------------------------------------------------------------------
 
-save_weight_stats(net, "weight_stats.txt")
+save_weight_stats(ema_net, "weight_stats.txt")
 
 # ---------------------------------------------------------------------------
 # Evaluation
 # ---------------------------------------------------------------------------
 
 print(f"[{ts()}] Evaluating on validation set...", flush=True)
-val_loss = evaluate_loss(net, device, BATCH_SIZE, VALIDATE_DIR)
+val_loss = evaluate_loss(ema_net, device, BATCH_SIZE, VALIDATE_DIR)
 
 # ---------------------------------------------------------------------------
 # Final summary
