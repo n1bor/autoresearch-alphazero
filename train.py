@@ -257,19 +257,11 @@ for p in ema_net.parameters():
     p.requires_grad_(False)
 ema_net.eval()
 
-WARMUP_STEPS = 5
+WARMUP_STEPS = 3
 T_MAX        = 800  # tuned for 7 blocks; 6 blocks may need updating after this run
 
 criterion  = AlphaLoss().to(device)
-_value_names = {'outblock.conv.weight', 'outblock.conv.bias', 'outblock.bn.weight',
-                'outblock.bn.bias', 'outblock.fc1.weight', 'outblock.fc1.bias',
-                'outblock.fc2.weight', 'outblock.fc2.bias'}
-_value_params = [p for n, p in net.named_parameters() if n in _value_names]
-_other_params = [p for n, p in net.named_parameters() if n not in _value_names]
-optimizer  = optim.AdamW([
-    {'params': _other_params, 'lr': LR},
-    {'params': _value_params, 'lr': LR * 2},
-], weight_decay=0.0005, betas=(0.9, 0.995))
+optimizer  = optim.AdamW(net.parameters(), lr=LR, weight_decay=0.0005, betas=(0.9, 0.995))
 scheduler  = optim.lr_scheduler.SequentialLR(optimizer, schedulers=[
     optim.lr_scheduler.LinearLR(optimizer, start_factor=0.1, end_factor=1.0, total_iters=WARMUP_STEPS),
     optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_MAX - WARMUP_STEPS, eta_min=LR * 0.1),
