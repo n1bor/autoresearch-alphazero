@@ -56,8 +56,8 @@ class OutBlock(nn.Module):
         # Value head
         self.conv  = nn.Conv2d(192, 1, kernel_size=1)
         self.bn    = nn.BatchNorm2d(1)
-        self.fc1   = nn.Linear(8 * 8, 64)
-        self.fc2   = nn.Linear(64, 1)
+        self.fc1   = nn.Linear(8 * 8, 128)
+        self.fc2   = nn.Linear(128, 1)
         # Policy head
         self.conv1      = nn.Conv2d(192, 32, kernel_size=1)
         self.bn1        = nn.BatchNorm2d(32)
