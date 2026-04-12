@@ -222,7 +222,7 @@ VALIDATE_DIR = os.path.join(ROOT_DIR, 'data', 'validate')
 MODEL_DIR    = os.path.join(ROOT_DIR, 'data', 'model_data')
 
 LR           = 0.0003
-BATCH_SIZE   = 192
+BATCH_SIZE   = 160  # ~1075 steps vs 894 → 275 low-LR fine-tuning steps vs 94
 
 RUN_ID       = 1     # included in saved model filename
 
@@ -241,9 +241,6 @@ print(f"[{ts()}] Device: {device}" + (f" ({torch.cuda.get_device_name(0)})" if c
 
 net = ChessNet().to(device)
 init_weights(net)
-for m in net.modules():
-    if isinstance(m, nn.BatchNorm2d):
-        m.momentum = 0.05  # slower running stat accumulation → more stable eval stats
 print(f"[{ts()}] Weights initialised (Kaiming/Xavier).", flush=True)
 
 if cuda:
