@@ -243,16 +243,15 @@ net = ChessNet().to(device)
 init_weights(net)
 print(f"[{ts()}] Weights initialised (Kaiming/Xavier).", flush=True)
 
-if cuda:
-    print(f"[{ts()}] Compiling model with torch.compile()...", flush=True)
-    net = torch.compile(net)
-    print(f"[{ts()}] Compiled.", flush=True)
+print(f"[{ts()}] Compiling model with torch.compile()...", flush=True)
+net = torch.compile(net)
+print(f"[{ts()}] Compiled.", flush=True)
 
 num_params = sum(p.numel() for p in net.parameters())
 print(f"[{ts()}] Parameters: {num_params/1e6:.1f}M", flush=True)
 
 EMA_DECAY = 0.998
-ema_net = copy.deepcopy(net)
+ema_net = copy.deepcopy(getattr(net, '_orig_mod', net))
 for p in ema_net.parameters():
     p.requires_grad_(False)
 ema_net.eval()
