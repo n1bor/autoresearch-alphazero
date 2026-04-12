@@ -251,7 +251,7 @@ num_params = sum(p.numel() for p in net.parameters())
 print(f"[{ts()}] Parameters: {num_params/1e6:.1f}M", flush=True)
 
 WARMUP_STEPS = 5
-T_MAX        = 490  # approximate total steps for cosine decay (policy 32ch ~50% more steps)
+T_MAX        = 565  # approximate total steps for cosine decay (matches observed 565 steps)
 
 criterion  = AlphaLoss().to(device)
 optimizer  = optim.AdamW(net.parameters(), lr=LR, weight_decay=0.001)
