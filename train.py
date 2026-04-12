@@ -96,6 +96,30 @@ class AlphaLoss(nn.Module):
         return (value_error.view(-1).float() + policy_error).mean()
 
 
+def init_weights(net):
+    """
+    Initialise weights for ChessNet:
+      - Conv2d: Kaiming normal (He init), suited for ReLU activations
+      - BatchNorm2d: weight=1, bias=0 (standard identity initialisation)
+      - Linear (hidden): Kaiming normal for ReLU
+      - Linear (value output, fc2): Xavier uniform, suited for tanh output
+    """
+    for name, m in net.named_modules():
+        if isinstance(m, nn.Conv2d):
+            nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            if m.bias is not None:
+                nn.init.zeros_(m.bias)
+        elif isinstance(m, nn.BatchNorm2d):
+            nn.init.ones_(m.weight)
+            nn.init.zeros_(m.bias)
+        elif isinstance(m, nn.Linear):
+            if name.endswith('fc2'):  # value head output → tanh
+                nn.init.xavier_uniform_(m.weight)
+            else:
+                nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
+            nn.init.zeros_(m.bias)
+
+
 # ---------------------------------------------------------------------------
 # Hyperparameters (edit these directly, no CLI flags needed)
 # ---------------------------------------------------------------------------
@@ -124,14 +148,8 @@ device = torch.device("cuda" if cuda else "cpu")
 print(f"[{ts()}] Device: {device}" + (f" ({torch.cuda.get_device_name(0)})" if cuda else ""), flush=True)
 
 net = ChessNet().to(device)
-
-model_path = os.path.join(MODEL_DIR, "random.gz")
-print(f"[{ts()}] Loading model from {model_path}", flush=True)
-checkpoint    = torch.load(model_path, weights_only=True, map_location=device)
-remove_prefix = '_orig_mod.'
-state_dict    = {(k[len(remove_prefix):] if k.startswith(remove_prefix) else k): v
-                 for k, v in checkpoint['state_dict'].items()}
-net.load_state_dict(state_dict)
+init_weights(net)
+print(f"[{ts()}] Weights initialised (Kaiming/Xavier).", flush=True)
 
 if cuda:
     print(f"[{ts()}] Compiling model with torch.compile()...", flush=True)
