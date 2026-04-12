@@ -13,7 +13,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-from prepare import make_dataloader, evaluate_loss, ts
+from prepare import make_dataloader, evaluate_loss, ts, TIME_BUDGET
 
 
 # ---------------------------------------------------------------------------
@@ -107,7 +107,6 @@ MODEL_DIR    = os.path.join(ROOT_DIR, 'data', 'model_data')
 
 LR           = 0.0003
 BATCH_SIZE   = 256
-TIME_BUDGET  = 300   # training time in seconds (wall clock, excluding startup/compilation)
 
 RUN_ID       = 1     # included in saved model filename
 

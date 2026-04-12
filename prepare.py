@@ -85,12 +85,13 @@ def make_dataloader(train_path, batch_size, pin_memory=False):
 # Evaluation (DO NOT CHANGE — fixed metric)
 # ---------------------------------------------------------------------------
 
-EVAL_TIME_BUDGET = 60  # seconds
+TIME_BUDGET      = 300  # training time in seconds (wall clock, excluding startup/compilation)
+EVAL_SAMPLES = 10_000  # number of samples to evaluate over
 
 @torch.no_grad()
 def evaluate_loss(net, device, batch_size, validate_path):
     """
-    Average AlphaLoss over the validation set, capped at EVAL_TIME_BUDGET seconds.
+    Average AlphaLoss over the validation set, capped at EVAL_SAMPLES samples.
     Loss = MSE(value) + cross_entropy(policy).
     Returns NaN if no validation data is available.
     """
@@ -104,11 +105,12 @@ def evaluate_loss(net, device, batch_size, validate_path):
     random.Random(42).shuffle(files)
     total_loss    = 0.0
     total_batches = 0
+    total_samples = 0
     t_eval_start  = time.time()
-    print(f"[{ts()}][eval] evaluating ({len(files)} files, {EVAL_TIME_BUDGET}s budget)...", flush=True)
+    print(f"[{ts()}][eval] evaluating ({len(files)} files, {EVAL_SAMPLES} samples)...", flush=True)
 
-    for i, file in enumerate(files):
-        if time.time() - t_eval_start >= EVAL_TIME_BUDGET:
+    for file in files:
+        if total_samples >= EVAL_SAMPLES:
             break
         with open(file, 'rb') as fo:
             try:
@@ -118,7 +120,7 @@ def evaluate_loss(net, device, batch_size, validate_path):
         data   = np.array(data, dtype="object")
         loader = DataLoader(board_data(data), batch_size=batch_size, shuffle=False, pin_memory=False)
         for state, policy, value in loader:
-            if time.time() - t_eval_start >= EVAL_TIME_BUDGET:
+            if total_samples >= EVAL_SAMPLES:
                 break
             state  = state.to(device,  dtype=torch.float32)
             policy = policy.to(device, dtype=torch.float32)
@@ -128,10 +130,11 @@ def evaluate_loss(net, device, batch_size, validate_path):
             policy_error = torch.sum((-policy * (1e-6 + policy_pred.float()).float().log()), 1)
             total_loss    += (value_error.view(-1).float() + policy_error).mean().item()
             total_batches += 1
+            total_samples += state.size(0)
 
     elapsed  = time.time() - t_eval_start
     val_loss = total_loss / total_batches if total_batches > 0 else float('nan')
-    print(f"[{ts()}][eval] complete — val_loss: {val_loss:.4f} ({total_batches} batches in {elapsed:.0f}s)", flush=True)
+    print(f"[{ts()}][eval] complete — val_loss: {val_loss:.4f} ({total_samples} samples, {total_batches} batches in {elapsed:.0f}s)", flush=True)
     return val_loss
 
 
