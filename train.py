@@ -195,11 +195,8 @@ def init_weights(net):
       - BatchNorm2d: weight=1, bias=0 (standard identity initialisation)
       - Linear (hidden): Kaiming normal for ReLU
       - Linear (value output, fc2): Xavier uniform, suited for tanh output
-      - ResBlock bn3 gamma: zero-init so residual branches start at zero
-        (network starts as identity; branches activate gradually during training)
     """
-    module = getattr(net, '_orig_mod', net)
-    for name, m in module.named_modules():
+    for name, m in net.named_modules():
         if isinstance(m, nn.Conv2d):
             nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
             if m.bias is not None:
@@ -213,11 +210,6 @@ def init_weights(net):
             else:
                 nn.init.kaiming_normal_(m.weight, nonlinearity='relu')
             nn.init.zeros_(m.bias)
-    # Zero-init last BN gamma in each ResBlock: residual branch starts as zero,
-    # network begins as identity mapping and gradually deepens during training.
-    for m in module.modules():
-        if isinstance(m, ResBlock):
-            nn.init.zeros_(m.bn3.weight)
 
 
 # ---------------------------------------------------------------------------
@@ -266,7 +258,7 @@ for p in ema_net.parameters():
 ema_net.eval()
 
 WARMUP_STEPS = 5
-T_MAX        = 800  # tuned for 7 blocks; 6 blocks may need updating after this run
+T_MAX        = 900  # test: keep LR higher through mid-training vs 800 sweet spot
 
 criterion  = AlphaLoss().to(device)
 optimizer  = optim.AdamW(net.parameters(), lr=LR, weight_decay=0.0005, betas=(0.9, 0.995))
