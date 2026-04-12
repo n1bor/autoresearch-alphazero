@@ -264,7 +264,7 @@ criterion  = AlphaLoss().to(device)
 optimizer  = optim.AdamW(net.parameters(), lr=LR, weight_decay=0.0005, betas=(0.9, 0.995))
 scheduler  = optim.lr_scheduler.SequentialLR(optimizer, schedulers=[
     optim.lr_scheduler.LinearLR(optimizer, start_factor=0.1, end_factor=1.0, total_iters=WARMUP_STEPS),
-    optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_MAX - WARMUP_STEPS, eta_min=LR * 0.1),
+    optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_MAX - WARMUP_STEPS, eta_min=LR * 0.05),
 ], milestones=[WARMUP_STEPS])
 train_iter = make_dataloader(TRAIN_DIR, BATCH_SIZE, pin_memory=cuda)
 
@@ -299,7 +299,7 @@ while True:
     optimizer.step()
     scheduler.step()
 
-    ema_decay = min(EMA_DECAY, (1 + step) / (3 + step))
+    ema_decay = min(EMA_DECAY, (1 + step) / (10 + step))
     with torch.no_grad():
         for ema_p, p in zip(ema_net.parameters(), net.parameters()):
             ema_p.mul_(ema_decay).add_(p, alpha=1.0 - ema_decay)
