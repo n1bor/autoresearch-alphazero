@@ -241,6 +241,9 @@ print(f"[{ts()}] Device: {device}" + (f" ({torch.cuda.get_device_name(0)})" if c
 
 net = ChessNet().to(device)
 init_weights(net)
+for m in net.modules():
+    if isinstance(m, nn.BatchNorm2d):
+        m.momentum = 0.05  # slower running stat accumulation → more stable eval stats
 print(f"[{ts()}] Weights initialised (Kaiming/Xavier).", flush=True)
 
 if cuda:
@@ -299,7 +302,7 @@ while True:
     optimizer.step()
     scheduler.step()
 
-    ema_decay = min(EMA_DECAY, (1 + step) / (15 + step))
+    ema_decay = min(EMA_DECAY, (1 + step) / (10 + step))
     with torch.no_grad():
         for ema_p, p in zip(ema_net.parameters(), net.parameters()):
             ema_p.mul_(ema_decay).add_(p, alpha=1.0 - ema_decay)
