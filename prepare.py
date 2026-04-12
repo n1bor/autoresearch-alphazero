@@ -86,34 +86,23 @@ def make_dataloader(train_path, batch_size, pin_memory=False):
 # ---------------------------------------------------------------------------
 
 TIME_BUDGET      = 300  # training time in seconds (wall clock, excluding startup/compilation)
-EVAL_FILES       = 1    # number of validation files to evaluate over (increase on GPU)
+EVAL_SAMPLES     = 50_000 if torch.cuda.is_available() else 5_000
 
 @torch.no_grad()
 def evaluate_loss(net, device, batch_size, validate_path):
     """
-    Average AlphaLoss over EVAL_FILES randomly chosen validation files.
+    Average AlphaLoss over EVAL_SAMPLES samples drawn from the validation set.
     Loss = MSE(value) + cross_entropy(policy).
     Returns NaN if no validation data is available.
     """
-    all_files = [os.path.join(validate_path, f)
-                 for f in os.listdir(validate_path) if f.endswith('.gz')]
-    if not all_files:
+    files = sorted(os.path.join(validate_path, f)
+                   for f in os.listdir(validate_path) if f.endswith('.gz'))
+    if not files:
         print(f"[{ts()}][eval] no .gz files in {validate_path}, skipping", flush=True)
         return float('nan')
 
-    files = random.Random(42).sample(all_files, min(EVAL_FILES, len(all_files)))
-    print(f"[{ts()}][eval] evaluating on {len(files)} file(s)...", flush=True)
-
-    data = []
-    for file in files:
-        with open(file, 'rb') as fo:
-            try:
-                data.extend(pickle.load(fo))
-            except EOFError:
-                continue
-    if not data:
-        return float('nan')
-    data = np.array(data, dtype="object")
+    random.Random(42).shuffle(files)
+    print(f"[{ts()}][eval] evaluating ({EVAL_SAMPLES} samples)...", flush=True)
 
     net.eval()
     total_loss    = 0.0
@@ -121,17 +110,28 @@ def evaluate_loss(net, device, batch_size, validate_path):
     total_samples = 0
     t_eval_start  = time.time()
 
-    loader = DataLoader(board_data(data), batch_size=batch_size, shuffle=False, pin_memory=False)
-    for state, policy, value in loader:
-        state  = state.to(device,  dtype=torch.float32)
-        policy = policy.to(device, dtype=torch.float32)
-        value  = value.to(device,  dtype=torch.float32)
-        policy_pred, value_pred = net(state)
-        value_error  = (value - value_pred[:, 0]) ** 2
-        policy_error = torch.sum((-policy * (1e-6 + policy_pred.float()).float().log()), 1)
-        total_loss    += (value_error.view(-1).float() + policy_error).mean().item()
-        total_batches += 1
-        total_samples += state.size(0)
+    for file in files:
+        if total_samples >= EVAL_SAMPLES:
+            break
+        with open(file, 'rb') as fo:
+            try:
+                data = pickle.load(fo)
+            except EOFError:
+                continue
+        data   = np.array(data, dtype="object")
+        loader = DataLoader(board_data(data), batch_size=batch_size, shuffle=False, pin_memory=False)
+        for state, policy, value in loader:
+            if total_samples >= EVAL_SAMPLES:
+                break
+            state  = state.to(device,  dtype=torch.float32)
+            policy = policy.to(device, dtype=torch.float32)
+            value  = value.to(device,  dtype=torch.float32)
+            policy_pred, value_pred = net(state)
+            value_error  = (value - value_pred[:, 0]) ** 2
+            policy_error = torch.sum((-policy * (1e-6 + policy_pred.float()).float().log()), 1)
+            total_loss    += (value_error.view(-1).float() + policy_error).mean().item()
+            total_batches += 1
+            total_samples += state.size(0)
 
     elapsed  = time.time() - t_eval_start
     val_loss = total_loss / total_batches if total_batches > 0 else float('nan')
