@@ -220,7 +220,7 @@ TRAIN_DIR    = os.path.join(ROOT_DIR, 'data', 'trainOld')
 VALIDATE_DIR = os.path.join(ROOT_DIR, 'data', 'validate')
 MODEL_DIR    = os.path.join(ROOT_DIR, 'data', 'model_data')
 
-LR           = 0.0004
+LR           = 0.0003
 BATCH_SIZE   = 256
 
 RUN_ID       = 1     # included in saved model filename
@@ -251,7 +251,7 @@ num_params = sum(p.numel() for p in net.parameters())
 print(f"[{ts()}] Parameters: {num_params/1e6:.1f}M", flush=True)
 
 WARMUP_STEPS = 5
-T_MAX        = 565  # approximate total steps for cosine decay (matches observed 565 steps)
+T_MAX        = 800  # larger T_MAX keeps LR higher longer — trend 304→565 all improved
 
 criterion  = AlphaLoss().to(device)
 optimizer  = optim.AdamW(net.parameters(), lr=LR, weight_decay=0.001)
