@@ -61,7 +61,7 @@ class board_data_all(IterableDataset):
                         continue
                 data = np.array(data, dtype="object")
                 print(f"[{ts()}][loader] loaded — {len(data)} records", flush=True)
-                file_loader = iter(DataLoader(board_data(data), shuffle=False, pin_memory=False))
+                file_loader = iter(DataLoader(board_data(data), shuffle=True, pin_memory=False))
                 while True:
                     item = next(file_loader, None)
                     if item is None:
