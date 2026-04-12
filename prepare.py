@@ -51,16 +51,23 @@ class board_data_all(IterableDataset):
             epoch += 1
             self.rng.shuffle(files)
             print(f"\n[{ts()}][loader] epoch {epoch} — {len(files)} files", flush=True)
-            for file in files:
-                print(f"[{ts()}][loader] loading {os.path.basename(file)}", flush=True)
-                with open(file, 'rb') as fo:
-                    try:
-                        data = pickle.load(fo)
-                    except EOFError:
-                        print(f"[{ts()}][loader] EOFError in {file}, skipping", flush=True)
-                        continue
-                data = np.array(data, dtype="object")
-                print(f"[{ts()}][loader] loaded — {len(data)} records", flush=True)
+            FILES_PER_CHUNK = 2  # mix N files per chunk for cross-file batch diversity
+            for i in range(0, len(files), FILES_PER_CHUNK):
+                chunk = files[i:i + FILES_PER_CHUNK]
+                chunks = []
+                for file in chunk:
+                    print(f"[{ts()}][loader] loading {os.path.basename(file)}", flush=True)
+                    with open(file, 'rb') as fo:
+                        try:
+                            raw = pickle.load(fo)
+                        except EOFError:
+                            print(f"[{ts()}][loader] EOFError in {file}, skipping", flush=True)
+                            continue
+                    chunks.append(np.array(raw, dtype="object"))
+                if not chunks:
+                    continue
+                data = np.concatenate(chunks, axis=0) if len(chunks) > 1 else chunks[0]
+                print(f"[{ts()}][loader] loaded {len(chunk)} files — {len(data)} records", flush=True)
                 file_loader = iter(DataLoader(board_data(data), shuffle=True, pin_memory=False))
                 while True:
                     item = next(file_loader, None)
