@@ -4,6 +4,7 @@ Usage: uv run train.py
 """
 
 import os
+import math
 import random
 import time
 import shutil
@@ -94,6 +95,93 @@ class AlphaLoss(nn.Module):
         value_error  = (value - y_value) ** 2
         policy_error = torch.sum((-policy * (1e-6 + y_policy.float()).float().log()), 1)
         return (value_error.view(-1).float() + policy_error).mean()
+
+
+def save_weight_stats(net, path):
+    """
+    Analyse the trained model weights and write a summary to path.
+
+    Per parameter:
+      mean, std, min, max, L2 norm, % near-zero (|w| < 1e-3),
+      and gradient mean/std from the last backward pass (if available).
+
+    Flags layers that may indicate training problems:
+      - std < 0.001  (weights collapsed / not learning)
+      - std > 1.0    (weights exploded)
+      - near_zero%  > 50  (mostly dead)
+      - grad_std > 0.1    (large gradient variance)
+    """
+    # Access underlying module if torch.compile() was used
+    module = getattr(net, '_orig_mod', net)
+
+    rows   = []
+    issues = []
+
+    for name, param in module.named_parameters():
+        w    = param.detach().float()
+        mean = w.mean().item()
+        std  = w.std().item()
+        wmin = w.min().item()
+        wmax = w.max().item()
+        l2   = w.norm(2).item()
+        nz   = (w.abs() < 1e-3).float().mean().item() * 100
+
+        grad_mean = grad_std = float('nan')
+        if param.grad is not None:
+            g         = param.grad.detach().float()
+            grad_mean = g.mean().item()
+            grad_std  = g.std().item()
+
+        rows.append((name, tuple(param.shape), mean, std, wmin, wmax, l2, nz, grad_mean, grad_std))
+
+        flags = []
+        if std < 0.001:                       flags.append('collapsed')
+        if std > 1.0:                         flags.append('exploded')
+        if nz > 50:                           flags.append(f'dead({nz:.0f}%)')
+        if not math.isnan(grad_std) and grad_std > 0.1:
+                                              flags.append(f'large_grad_std({grad_std:.3f})')
+        if flags:
+            issues.append((name, flags))
+
+    with open(path, 'w') as f:
+        f.write(f"Weight statistics\n")
+        f.write(f"Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+
+        # Header
+        f.write(f"{'Name':<45} {'Shape':<20} {'Mean':>9} {'Std':>9} {'Min':>9} {'Max':>9} "
+                f"{'L2':>9} {'Dead%':>6} {'GradMean':>10} {'GradStd':>10}\n")
+        f.write("-" * 145 + "\n")
+
+        for name, shape, mean, std, wmin, wmax, l2, nz, gm, gs in rows:
+            shape_str = str(shape)
+            gm_str = f"{gm:10.4f}" if not math.isnan(gm) else f"{'n/a':>10}"
+            gs_str = f"{gs:10.4f}" if not math.isnan(gs) else f"{'n/a':>10}"
+            f.write(f"{name:<45} {shape_str:<20} {mean:9.4f} {std:9.4f} {wmin:9.4f} {wmax:9.4f} "
+                    f"{l2:9.2f} {nz:6.1f} {gm_str} {gs_str}\n")
+
+        # Summary by layer type
+        def layer_rows(keyword):
+            return [r for r in rows if keyword in r[0]]
+
+        f.write("\n=== Summary by layer type ===\n")
+        for label, keyword in [("Conv weights", ".conv"), ("BN weights", ".bn"),
+                                ("Linear weights", ".fc")]:
+            subset = layer_rows(keyword)
+            if subset:
+                stds = [r[3] for r in subset]
+                l2s  = [r[6] for r in subset]
+                f.write(f"  {label:<20}  n={len(subset):3d}  mean_std={sum(stds)/len(stds):.4f}  "
+                        f"mean_l2={sum(l2s)/len(l2s):.2f}\n")
+
+        # Flagged layers
+        f.write("\n=== Flagged layers ===\n")
+        if issues:
+            for name, flags in issues:
+                f.write(f"  {name:<45}  {', '.join(flags)}\n")
+        else:
+            f.write("  None\n")
+
+    print(f"[{ts()}] Weight stats written to {path}", flush=True)
 
 
 def init_weights(net):
@@ -227,6 +315,12 @@ out_file = os.path.join(MODEL_DIR,
 torch.save({'state_dict': net.state_dict()}, out_file)
 shutil.copy(out_file, os.path.join(MODEL_DIR, "latest.gz"))
 print(f"[{ts()}] Saved to {out_file}", flush=True)
+
+# ---------------------------------------------------------------------------
+# Weight statistics
+# ---------------------------------------------------------------------------
+
+save_weight_stats(net, "weight_stats.txt")
 
 # ---------------------------------------------------------------------------
 # Evaluation
