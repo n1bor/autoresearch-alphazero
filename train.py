@@ -54,9 +54,9 @@ class OutBlock(nn.Module):
     def __init__(self):
         super().__init__()
         # Value head
-        self.conv  = nn.Conv2d(256, 1, kernel_size=1)
-        self.bn    = nn.BatchNorm2d(1)
-        self.fc1   = nn.Linear(8 * 8, 64)
+        self.conv  = nn.Conv2d(256, 4, kernel_size=1)
+        self.bn    = nn.BatchNorm2d(4)
+        self.fc1   = nn.Linear(8 * 8 * 4, 64)
         self.fc2   = nn.Linear(64, 1)
         # Policy head
         self.conv1      = nn.Conv2d(256, 32, kernel_size=1)
@@ -66,7 +66,7 @@ class OutBlock(nn.Module):
 
     def forward(self, s):
         v = F.relu(self.bn(self.conv(s)))
-        v = v.view(-1, 8 * 8)
+        v = v.view(-1, 8 * 8 * 4)
         v = F.relu(self.fc1(v))
         v = F.tanh(self.fc2(v))
         p = F.relu(self.bn1(self.conv1(s)))
