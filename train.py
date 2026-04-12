@@ -79,13 +79,13 @@ class ChessNet(nn.Module):
     def __init__(self):
         super().__init__()
         self.conv = ConvBlock()
-        for block in range(7):
+        for block in range(8):
             setattr(self, "res_%i" % block, ResBlock())
         self.outblock = OutBlock()
 
     def forward(self, s):
         s = self.conv(s)
-        for block in range(7):
+        for block in range(8):
             s = getattr(self, "res_%i" % block)(s)
         return self.outblock(s)
 
