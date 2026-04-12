@@ -299,9 +299,10 @@ while True:
     optimizer.step()
     scheduler.step()
 
+    ema_decay = min(EMA_DECAY, (1 + step) / (10 + step))
     with torch.no_grad():
         for ema_p, p in zip(ema_net.parameters(), net.parameters()):
-            ema_p.mul_(EMA_DECAY).add_(p, alpha=1.0 - EMA_DECAY)
+            ema_p.mul_(ema_decay).add_(p, alpha=1.0 - ema_decay)
         for ema_b, b in zip(ema_net.buffers(), net.buffers()):
             ema_b.copy_(b)
 
