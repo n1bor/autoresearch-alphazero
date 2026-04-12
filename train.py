@@ -221,7 +221,7 @@ VALIDATE_DIR = os.path.join(ROOT_DIR, 'data', 'validate')
 MODEL_DIR    = os.path.join(ROOT_DIR, 'data', 'model_data')
 
 LR           = 0.0003
-BATCH_SIZE   = 192
+BATCH_SIZE   = 128
 
 RUN_ID       = 1     # included in saved model filename
 
@@ -251,7 +251,7 @@ num_params = sum(p.numel() for p in net.parameters())
 print(f"[{ts()}] Parameters: {num_params/1e6:.1f}M", flush=True)
 
 WARMUP_STEPS = 5
-T_MAX        = 800  # confirmed sweet spot from both sides (1000 and 1200 both worse)
+T_MAX        = 1100  # scaled for bs=128: expect ~850-900 steps, 90% cosine coverage
 
 criterion  = AlphaLoss().to(device)
 optimizer  = optim.AdamW(net.parameters(), lr=LR, weight_decay=0.0005)
