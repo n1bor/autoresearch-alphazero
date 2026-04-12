@@ -33,17 +33,20 @@ class ConvBlock(nn.Module):
 
 
 class ResBlock(nn.Module):
-    def __init__(self, inplanes=256, planes=256, stride=1):
+    def __init__(self, planes=256, bottleneck=64):
         super().__init__()
-        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
-        self.bn1   = nn.BatchNorm2d(planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
-        self.bn2   = nn.BatchNorm2d(planes)
+        self.conv1 = nn.Conv2d(planes, bottleneck, kernel_size=1, bias=False)
+        self.bn1   = nn.BatchNorm2d(bottleneck)
+        self.conv2 = nn.Conv2d(bottleneck, bottleneck, kernel_size=3, padding=1, bias=False)
+        self.bn2   = nn.BatchNorm2d(bottleneck)
+        self.conv3 = nn.Conv2d(bottleneck, planes, kernel_size=1, bias=False)
+        self.bn3   = nn.BatchNorm2d(planes)
 
     def forward(self, x):
         residual = x
         out = F.relu(self.bn1(self.conv1(x)))
-        out = self.bn2(self.conv2(out))
+        out = F.relu(self.bn2(self.conv2(out)))
+        out = self.bn3(self.conv3(out))
         return F.relu(out + residual)
 
 
@@ -248,7 +251,7 @@ num_params = sum(p.numel() for p in net.parameters())
 print(f"[{ts()}] Parameters: {num_params/1e6:.1f}M", flush=True)
 
 WARMUP_STEPS = 10
-T_MAX        = 86   # approximate total steps for cosine decay
+T_MAX        = 270  # approximate total steps for cosine decay (bottleneck blocks ~3x faster)
 
 criterion  = AlphaLoss().to(device)
 optimizer  = optim.AdamW(net.parameters(), lr=LR, weight_decay=0.001)
