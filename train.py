@@ -53,10 +53,8 @@ class ResBlock(nn.Module):
 class OutBlock(nn.Module):
     def __init__(self):
         super().__init__()
-        # Value head
-        self.conv  = nn.Conv2d(192, 1, kernel_size=1)
-        self.bn    = nn.BatchNorm2d(1)
-        self.fc1   = nn.Linear(8 * 8, 128)
+        # Value head (global avg pool — all 192 channels, no spatial bottleneck)
+        self.fc1   = nn.Linear(192, 128)
         self.fc2   = nn.Linear(128, 1)
         # Policy head
         self.conv1      = nn.Conv2d(192, 32, kernel_size=1)
@@ -65,8 +63,7 @@ class OutBlock(nn.Module):
         self.fc         = nn.Linear(8 * 8 * 32, 8 * 8 * 73)
 
     def forward(self, s):
-        v = F.relu(self.bn(self.conv(s)))
-        v = v.view(-1, 8 * 8)
+        v = s.mean(dim=[2, 3])         # global avg pool: (batch, 192)
         v = F.relu(self.fc1(v))
         v = F.tanh(self.fc2(v))
         p = F.relu(self.bn1(self.conv1(s)))
@@ -250,11 +247,15 @@ if cuda:
 num_params = sum(p.numel() for p in net.parameters())
 print(f"[{ts()}] Parameters: {num_params/1e6:.1f}M", flush=True)
 
-T_MAX = 800  # cosine period; ~868 actual steps, ~10% above eta_min at end
+WARMUP_STEPS = 5
+T_MAX        = 800  # tuned for 7 blocks; 6 blocks may need updating after this run
 
 criterion  = AlphaLoss().to(device)
 optimizer  = optim.AdamW(net.parameters(), lr=LR, weight_decay=0.0005, betas=(0.9, 0.995))
-scheduler  = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_MAX, eta_min=LR * 0.1)
+scheduler  = optim.lr_scheduler.SequentialLR(optimizer, schedulers=[
+    optim.lr_scheduler.LinearLR(optimizer, start_factor=0.1, end_factor=1.0, total_iters=WARMUP_STEPS),
+    optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=T_MAX - WARMUP_STEPS, eta_min=LR * 0.1),
+], milestones=[WARMUP_STEPS])
 train_iter = make_dataloader(TRAIN_DIR, BATCH_SIZE, pin_memory=cuda)
 
 state, policy, value = next(train_iter)  # prefetch first batch
