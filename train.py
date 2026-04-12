@@ -24,8 +24,8 @@ from prepare import make_dataloader, evaluate_loss, ts, TIME_BUDGET, EVAL_SAMPLE
 class ConvBlock(nn.Module):
     def __init__(self):
         super().__init__()
-        self.conv1 = nn.Conv2d(22, 256, 3, stride=1, padding=1)
-        self.bn1   = nn.BatchNorm2d(256)
+        self.conv1 = nn.Conv2d(22, 192, 3, stride=1, padding=1)
+        self.bn1   = nn.BatchNorm2d(192)
 
     def forward(self, s):
         s = s.view(-1, 22, 8, 8)
@@ -33,7 +33,7 @@ class ConvBlock(nn.Module):
 
 
 class ResBlock(nn.Module):
-    def __init__(self, planes=256, bottleneck=64):
+    def __init__(self, planes=192, bottleneck=64):
         super().__init__()
         self.conv1 = nn.Conv2d(planes, bottleneck, kernel_size=1, bias=False)
         self.bn1   = nn.BatchNorm2d(bottleneck)
@@ -54,12 +54,12 @@ class OutBlock(nn.Module):
     def __init__(self):
         super().__init__()
         # Value head
-        self.conv  = nn.Conv2d(256, 1, kernel_size=1)
+        self.conv  = nn.Conv2d(192, 1, kernel_size=1)
         self.bn    = nn.BatchNorm2d(1)
         self.fc1   = nn.Linear(8 * 8, 64)
         self.fc2   = nn.Linear(64, 1)
         # Policy head
-        self.conv1      = nn.Conv2d(256, 32, kernel_size=1)
+        self.conv1      = nn.Conv2d(192, 32, kernel_size=1)
         self.bn1        = nn.BatchNorm2d(32)
         self.logsoftmax = nn.LogSoftmax(dim=1)
         self.fc         = nn.Linear(8 * 8 * 32, 8 * 8 * 73)
