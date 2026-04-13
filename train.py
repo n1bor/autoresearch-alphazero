@@ -56,10 +56,10 @@ class OutBlock(nn.Module):
         self.fc1   = nn.Linear(8 * 8, 64)
         self.fc2   = nn.Linear(64, 1)
         # Policy head
-        self.conv1      = nn.Conv2d(256, 128, kernel_size=1)
-        self.bn1        = nn.BatchNorm2d(128)
+        self.conv1      = nn.Conv2d(256, 64, kernel_size=1)
+        self.bn1        = nn.BatchNorm2d(64)
         self.logsoftmax = nn.LogSoftmax(dim=1)
-        self.fc         = nn.Linear(8 * 8 * 128, 8 * 8 * 73)
+        self.fc         = nn.Linear(8 * 8 * 64, 8 * 8 * 73)
 
     def forward(self, s):
         v = F.relu(self.bn(self.conv(s)))
@@ -67,7 +67,7 @@ class OutBlock(nn.Module):
         v = F.relu(self.fc1(v))
         v = F.tanh(self.fc2(v))
         p = F.relu(self.bn1(self.conv1(s)))
-        p = p.view(-1, 8 * 8 * 128)
+        p = p.view(-1, 8 * 8 * 64)
         p = self.logsoftmax(self.fc(p)).exp()
         return p, v
 
