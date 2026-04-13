@@ -218,7 +218,7 @@ VALIDATE_DIR = os.path.join(ROOT_DIR, 'data', 'validate')
 MODEL_DIR    = os.path.join(ROOT_DIR, 'data', 'model_data')
 
 LR           = 0.0003
-BATCH_SIZE   = 2_000
+BATCH_SIZE   = 256
 
 RUN_ID       = 1     # included in saved model filename
 
