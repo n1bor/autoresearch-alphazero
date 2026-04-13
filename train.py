@@ -284,6 +284,8 @@ while True:
         policy_pred, value_pred = net(state)
         loss = criterion(value_pred[:, 0], value, policy_pred, policy)
     scaler.scale(loss).backward()
+    scaler.unscale_(optimizer)
+    torch.nn.utils.clip_grad_norm_(net.parameters(), max_norm=1.0)
     scaler.step(optimizer)
     scaler.update()
 
