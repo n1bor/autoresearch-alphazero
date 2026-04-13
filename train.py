@@ -72,7 +72,7 @@ class OutBlock(nn.Module):
         return p, v
 
 
-NUM_RES_BLOCKS = 5
+NUM_RES_BLOCKS = 3
 
 class ChessNet(nn.Module):
     def __init__(self):
