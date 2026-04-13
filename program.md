@@ -12,7 +12,7 @@ To set up a new experiment, work with the user to:
    - `README.md` — repository context.
    - `prepare.py` — fixed dataloader, evaluation, and data utilities. Do not modify.
    - `train.py` — the file you modify. Network architecture, optimizer, training loop.
-4. **Verify data exists**: Check that `/home/owensr/chess/data/trainOld/` contains `.gz` training files and `/home/owensr/chess/data/validate/` contains `.gz` validation files. Check that `/home/owensr/chess/data/model_data/random.gz` exists.
+4. **Verify data exists**: Check that `/workspace/chess/data/trainOld/` contains `.gz` training files and `/workspace/chess/data/validate/` contains `.gz` validation files.
 5. **Initialize results.tsv**: Create `results.tsv` with just the header row. The baseline will be recorded after the first run.
 6. **Confirm and go**: Confirm setup looks good.
 
@@ -30,7 +30,7 @@ Each experiment trains ChessNet on self-play data for a **fixed time budget of 5
 - Install new packages or add dependencies. You can only use what's already in `pyproject.toml`.
 - Modify the evaluation harness. The `evaluate_loss` function in `prepare.py` is the ground truth metric.
 
-**The goal is simple: get the lowest val_loss.** Since the time budget is fixed, you don't need to worry about training time — it's always 5 minutes. Everything is fair game: change the architecture, the optimizer, the hyperparameters, the batch size, the model size. The only constraint is that the code runs without crashing and finishes within the time budget.
+**The goal is simple: get the lowest val_loss.** Since the time budget is fixed, you don't need to worry about training time — it's always 20 minutes. Everything is fair game: change the architecture, the optimizer, the hyperparameters, the batch size, the model size. The only constraint is that the code runs without crashing and finishes within the time budget. 
 
 **Memory** is a soft constraint. Some increase is acceptable for meaningful val_loss gains, but it should not blow up dramatically.
 
@@ -94,18 +94,18 @@ The experiment runs on a dedicated branch (e.g. `autoresearch/apr11`).
 LOOP FOREVER:
 
 1. Look at the git state: the current branch/commit we're on
-2. Tune `train.py` with an experimental idea by directly hacking the code.
+2. Tune `train.py` with an experimental idea by directly hacking the code. Look in the file weight_stats.txt - this has information on the weights in the network from the last run and you should use this to help with the tuning. weight_stats_best.txt file will have the stats from the best run for you to compare to.  In addition remember that this experiment is only running for a limited amount of time - but the real training will run for much longer - so only make changes that will also help with the longer training runs. If you need more detailed information add code to save_weight_stats function in train.py.
 3. git commit
-4. Run the experiment: `uv run train.py > run.log 2>&1` (redirect everything — do NOT use tee or let output flood your context)
+4. Run the experiment: `uv run train.py > run.log 2>&1` (redirect everything — do NOT use tee or let output flood your context). In addition you can run nvidia-smi or "top -b -n 1"  on occasion to track bottlenecks to help with the tuning in step 2.
 5. Read out the results: `grep "^val_loss:\|^peak_vram_mb:" run.log`
 6. If the grep output is empty, the run crashed. Run `tail -n 50 run.log` to read the Python stack trace and attempt a fix. If you can't get things to work after more than a few attempts, give up.
 7. Record the results in the tsv (NOTE: do not commit the results.tsv file, leave it untracked by git)
-8. If val_loss improved (lower), you "advance" the branch, keeping the git commit
+8. If val_loss improved (lower), you "advance" the branch, keeping the git commit. And copy the weights file "cp weight_stats.txt weight_stats_best.txt" so you have a copy of the stats for the weights of the best run to help in tuning.
 9. If val_loss is equal or worse, you git reset back to where you started
 
 The idea is that you are a completely autonomous researcher trying things out. If they work, keep. If they don't, discard. And you're advancing the branch so that you can iterate. If you feel like you're getting stuck in some way, you can rewind but you should probably do this very very sparingly (if ever).
 
-**Timeout**: Each experiment should take ~6 minutes total (5 min training + 1 min eval + startup overhead). If a run exceeds 15 minutes, kill it and treat it as a failure (discard and revert).
+**Timeout**: Each experiment should take ~21 minutes total (20 min training + 1 min eval + startup overhead). If a run exceeds 25 minutes, kill it and treat it as a failure (discard and revert).
 
 **Crashes**: If a run crashes (OOM, or a bug, or etc.), use your judgment: If it's something dumb and easy to fix (e.g. a typo, a missing import), fix it and re-run. If the idea itself is fundamentally broken, just skip it, log "crash" as the status in the tsv, and move on.
 
