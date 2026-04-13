@@ -266,6 +266,8 @@ roll_9            = 7.0
 roll_99           = 7.0
 step              = 0
 
+scaler = torch.cuda.amp.GradScaler(enabled=cuda)
+
 net.train()
 
 while True:
@@ -276,10 +278,12 @@ while True:
     value  = value.to(device,  dtype=torch.float32)
 
     optimizer.zero_grad()
-    policy_pred, value_pred = net(state)
-    loss = criterion(value_pred[:, 0], value, policy_pred, policy)
-    loss.backward()
-    optimizer.step()
+    with torch.autocast(device_type='cuda' if cuda else 'cpu', enabled=cuda):
+        policy_pred, value_pred = net(state)
+        loss = criterion(value_pred[:, 0], value, policy_pred, policy)
+    scaler.scale(loss).backward()
+    scaler.step(optimizer)
+    scaler.update()
 
     loss_f = loss.item()
     roll_9  = 0.9  * roll_9  + 0.1  * loss_f
