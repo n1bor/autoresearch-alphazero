@@ -8,6 +8,8 @@ import math
 import random
 import time
 import datetime
+import itertools
+from concurrent.futures import ThreadPoolExecutor
 import compress_pickle as pickle
 import numpy as np
 import torch
@@ -35,40 +37,65 @@ class board_data(Dataset):
         return self.X[idx].transpose(2, 0, 1), self.y_p[idx], self.y_v[idx]
 
 
+def _load_file(path):
+    """Load a single .gz file and return numpy array, or None on error."""
+    with open(path, 'rb') as fo:
+        try:
+            data = pickle.load(fo)
+        except EOFError:
+            return path, None
+    return path, np.array(data, dtype="object")
+
+
 class board_data_all(IterableDataset):
-    """Infinite dataset: cycles through all .gz files in a directory forever."""
-    def __init__(self, directory, seed=42):
+    """Infinite dataset: cycles through all .gz files in a directory forever.
+    Loads up to `prefetch` files in parallel using a thread pool."""
+    def __init__(self, directory, seed=42, prefetch=5):
         super().__init__()
         self.directory = directory
         self.rng = random.Random(seed)
+        self.prefetch = prefetch
 
     def generate(self):
         files = sorted(os.path.join(self.directory, f)
                        for f in os.listdir(self.directory) if f.endswith('.gz'))
         assert files, f"No .gz files found in {self.directory}"
         epoch = 0
-        while True:
-            epoch += 1
-            self.rng.shuffle(files)
-            print(f"\n[{ts()}][loader] epoch {epoch} — {len(files)} files", flush=True)
-            for file in files:
-                print(f"[{ts()}][loader] loading {os.path.basename(file)}", flush=True)
-                with open(file, 'rb') as fo:
+        with ThreadPoolExecutor(max_workers=self.prefetch) as executor:
+            while True:
+                epoch += 1
+                shuffled = list(files)
+                self.rng.shuffle(shuffled)
+                print(f"\n[{ts()}][loader] epoch {epoch} — {len(shuffled)} files", flush=True)
+
+                file_iter = iter(shuffled)
+                # Seed the window with up to `prefetch` concurrent futures
+                pending = [(f, executor.submit(_load_file, f))
+                           for f in itertools.islice(file_iter, self.prefetch)]
+
+                while pending:
+                    file_path, future = pending.pop(0)
+                    # Immediately queue the next file so loading overlaps with yielding
                     try:
-                        data = pickle.load(fo)
-                    except EOFError:
-                        print(f"[{ts()}][loader] EOFError in {file}, skipping", flush=True)
+                        next_f = next(file_iter)
+                        pending.append((next_f, executor.submit(_load_file, next_f)))
+                    except StopIteration:
+                        pass
+
+                    print(f"[{ts()}][loader] loading {os.path.basename(file_path)}", flush=True)
+                    _, data = future.result()
+                    if data is None:
+                        print(f"[{ts()}][loader] EOFError in {file_path}, skipping", flush=True)
                         continue
-                data = np.array(data, dtype="object")
-                print(f"[{ts()}][loader] loaded — {len(data)} records", flush=True)
-                file_loader = iter(DataLoader(board_data(data), shuffle=False, pin_memory=False))
-                while True:
-                    item = next(file_loader, None)
-                    if item is None:
-                        break
-                    yield (torch.squeeze(item[0]),
-                           torch.squeeze(item[1]),
-                           torch.squeeze(item[2]))
+                    print(f"[{ts()}][loader] loaded — {len(data)} records", flush=True)
+                    file_loader = iter(DataLoader(board_data(data), shuffle=False, pin_memory=False))
+                    while True:
+                        item = next(file_loader, None)
+                        if item is None:
+                            break
+                        yield (torch.squeeze(item[0]),
+                               torch.squeeze(item[1]),
+                               torch.squeeze(item[2]))
 
     def __iter__(self):
         return iter(self.generate())
