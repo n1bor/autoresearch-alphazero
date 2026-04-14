@@ -219,7 +219,10 @@ TRAIN_DIR    = os.path.join(ROOT_DIR, 'data', 'trainOld')
 VALIDATE_DIR = os.path.join(ROOT_DIR, 'data', 'validate')
 MODEL_DIR    = os.path.join(ROOT_DIR, 'data', 'model_data')
 
-LR           = 0.0005
+LR_MAX       = 0.001
+LR_MIN       = 1e-5
+LR_WARMUP    = 500   # linear warmup steps
+WEIGHT_DECAY = 0.01
 BATCH_SIZE   = 256
 GRAD_CLIP    = 1.0
 
@@ -251,13 +254,13 @@ num_params = sum(p.numel() for p in net.parameters())
 print(f"[{ts()}] Parameters: {num_params/1e6:.1f}M", flush=True)
 
 criterion  = AlphaLoss().to(device)
-optimizer  = optim.Adam(net.parameters(), lr=LR)
+optimizer  = optim.AdamW(net.parameters(), lr=LR_MAX, weight_decay=WEIGHT_DECAY)
 scaler     = torch.cuda.amp.GradScaler(enabled=cuda)
 train_iter = make_dataloader(TRAIN_DIR, BATCH_SIZE, pin_memory=cuda)
 
 state, policy, value = next(train_iter)  # prefetch first batch
 
-print(f"[{ts()}] Time budget: {TIME_BUDGET}s  batch_size: {BATCH_SIZE}  lr: {LR}  eval_samples: {EVAL_SAMPLES}  eval_batch_size: {EVAL_BATCH_SIZE}", flush=True)
+print(f"[{ts()}] Time budget: {TIME_BUDGET}s  batch_size: {BATCH_SIZE}  lr_max: {LR_MAX}  lr_min: {LR_MIN}  warmup: {LR_WARMUP}  wd: {WEIGHT_DECAY}  eval_samples: {EVAL_SAMPLES}", flush=True)
 
 # ---------------------------------------------------------------------------
 # Training loop
@@ -278,6 +281,15 @@ while True:
     state  = state.to(device,  dtype=torch.float32)
     policy = policy.to(device, dtype=torch.float32)
     value  = value.to(device,  dtype=torch.float32)
+
+    # LR schedule: linear warmup then cosine decay over time budget
+    if step < LR_WARMUP:
+        lr = LR_MAX * (step + 1) / LR_WARMUP
+    else:
+        progress = min(total_training_time / TIME_BUDGET, 1.0)
+        lr = LR_MIN + 0.5 * (LR_MAX - LR_MIN) * (1 + math.cos(math.pi * progress))
+    for pg in optimizer.param_groups:
+        pg['lr'] = lr
 
     optimizer.zero_grad()
     with torch.autocast(device_type='cuda' if cuda else 'cpu', enabled=cuda):
