@@ -219,11 +219,11 @@ TRAIN_DIR    = os.path.join(ROOT_DIR, 'data', 'trainOld')
 VALIDATE_DIR = os.path.join(ROOT_DIR, 'data', 'validate')
 MODEL_DIR    = os.path.join(ROOT_DIR, 'data', 'model_data')
 
-LR_MAX       = 0.002
-LR_MIN       = 1e-5
+LR_MAX       = 0.004
+LR_MIN       = 2e-5
 LR_WARMUP    = 500   # linear warmup steps
 WEIGHT_DECAY = 0.01
-BATCH_SIZE   = 256
+BATCH_SIZE   = 512
 GRAD_CLIP    = 1.0
 
 RUN_ID       = 1     # included in saved model filename
