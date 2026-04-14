@@ -217,7 +217,11 @@ TRAIN_DIR    = os.path.join(ROOT_DIR, 'data', 'trainOld')
 VALIDATE_DIR = os.path.join(ROOT_DIR, 'data', 'validate')
 MODEL_DIR    = os.path.join(ROOT_DIR, 'data', 'model_data')
 
-LR           = 0.0003
+LR           = 0.001
+LR_MIN       = 1e-5
+LR_WARMUP_STEPS = 500
+WEIGHT_DECAY = 0.01
+GRAD_CLIP    = 1.0
 BATCH_SIZE   = 256
 
 RUN_ID       = 1     # included in saved model filename
@@ -248,12 +252,12 @@ num_params = sum(p.numel() for p in net.parameters())
 print(f"[{ts()}] Parameters: {num_params/1e6:.1f}M", flush=True)
 
 criterion  = AlphaLoss().to(device)
-optimizer  = optim.Adam(net.parameters(), lr=LR)
+optimizer  = optim.AdamW(net.parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
 train_iter = make_dataloader(TRAIN_DIR, BATCH_SIZE, pin_memory=cuda)
 
 state, policy, value = next(train_iter)  # prefetch first batch
 
-print(f"[{ts()}] Time budget: {TIME_BUDGET}s  batch_size: {BATCH_SIZE}  lr: {LR}  eval_samples: {EVAL_SAMPLES}  eval_batch_size: {EVAL_BATCH_SIZE}", flush=True)
+print(f"[{ts()}] Time budget: {TIME_BUDGET}s  batch_size: {BATCH_SIZE}  lr: {LR}  lr_min: {LR_MIN}  warmup: {LR_WARMUP_STEPS}  wd: {WEIGHT_DECAY}  grad_clip: {GRAD_CLIP}  eval_samples: {EVAL_SAMPLES}  eval_batch_size: {EVAL_BATCH_SIZE}", flush=True)
 
 # ---------------------------------------------------------------------------
 # Training loop
@@ -275,10 +279,20 @@ while True:
     policy = policy.to(device, dtype=torch.float32)
     value  = value.to(device,  dtype=torch.float32)
 
+    # LR schedule: linear warmup then cosine decay
+    if step < LR_WARMUP_STEPS:
+        lr = LR * (step + 1) / LR_WARMUP_STEPS
+    else:
+        progress = min(total_training_time / TIME_BUDGET, 1.0)
+        lr = LR_MIN + 0.5 * (LR - LR_MIN) * (1 + math.cos(math.pi * progress))
+    for pg in optimizer.param_groups:
+        pg['lr'] = lr
+
     optimizer.zero_grad()
     policy_pred, value_pred = net(state)
     loss = criterion(value_pred[:, 0], value, policy_pred, policy)
     loss.backward()
+    torch.nn.utils.clip_grad_norm_(net.parameters(), GRAD_CLIP)
     optimizer.step()
 
     loss_f = loss.item()
