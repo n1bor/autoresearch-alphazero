@@ -72,17 +72,19 @@ class OutBlock(nn.Module):
         return p, v
 
 
+NUM_RES_BLOCKS = 12
+
 class ChessNet(nn.Module):
     def __init__(self):
         super().__init__()
         self.conv = ConvBlock()
-        for block in range(19):
+        for block in range(NUM_RES_BLOCKS):
             setattr(self, "res_%i" % block, ResBlock())
         self.outblock = OutBlock()
 
     def forward(self, s):
         s = self.conv(s)
-        for block in range(19):
+        for block in range(NUM_RES_BLOCKS):
             s = getattr(self, "res_%i" % block)(s)
         return self.outblock(s)
 
