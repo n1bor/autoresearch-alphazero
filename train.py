@@ -222,7 +222,7 @@ MODEL_DIR    = os.path.join(ROOT_DIR, 'data', 'model_data')
 LR_MAX       = 0.004
 LR_MIN       = 2e-5
 LR_WARMUP    = 500   # linear warmup steps
-WEIGHT_DECAY = 0.01
+WEIGHT_DECAY = 0.0001
 BATCH_SIZE   = 512
 GRAD_CLIP    = 1.0
 
