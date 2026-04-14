@@ -217,7 +217,7 @@ TRAIN_DIR    = os.path.join(ROOT_DIR, 'data', 'trainOld')
 VALIDATE_DIR = os.path.join(ROOT_DIR, 'data', 'validate')
 MODEL_DIR    = os.path.join(ROOT_DIR, 'data', 'model_data')
 
-LR           = 0.001
+LR           = 0.002
 LR_MIN       = 1e-5
 LR_WARMUP_STEPS = 500
 WEIGHT_DECAY = 0.01
