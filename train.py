@@ -217,8 +217,9 @@ TRAIN_DIR    = os.path.join(ROOT_DIR, 'data', 'trainOld')
 VALIDATE_DIR = os.path.join(ROOT_DIR, 'data', 'validate')
 MODEL_DIR    = os.path.join(ROOT_DIR, 'data', 'model_data')
 
-LR           = 0.0003
+LR           = 0.0005
 BATCH_SIZE   = 256
+GRAD_CLIP    = 1.0
 
 RUN_ID       = 1     # included in saved model filename
 
@@ -249,6 +250,7 @@ print(f"[{ts()}] Parameters: {num_params/1e6:.1f}M", flush=True)
 
 criterion  = AlphaLoss().to(device)
 optimizer  = optim.Adam(net.parameters(), lr=LR)
+scaler     = torch.cuda.amp.GradScaler(enabled=cuda)
 train_iter = make_dataloader(TRAIN_DIR, BATCH_SIZE, pin_memory=cuda)
 
 state, policy, value = next(train_iter)  # prefetch first batch
@@ -276,10 +278,14 @@ while True:
     value  = value.to(device,  dtype=torch.float32)
 
     optimizer.zero_grad()
-    policy_pred, value_pred = net(state)
-    loss = criterion(value_pred[:, 0], value, policy_pred, policy)
-    loss.backward()
-    optimizer.step()
+    with torch.autocast(device_type='cuda' if cuda else 'cpu', enabled=cuda):
+        policy_pred, value_pred = net(state)
+        loss = criterion(value_pred[:, 0], value, policy_pred, policy)
+    scaler.scale(loss).backward()
+    scaler.unscale_(optimizer)
+    torch.nn.utils.clip_grad_norm_(net.parameters(), GRAD_CLIP)
+    scaler.step(optimizer)
+    scaler.update()
 
     loss_f = loss.item()
     roll_9  = 0.9  * roll_9  + 0.1  * loss_f
