@@ -218,8 +218,8 @@ VALIDATE_DIR = os.path.join(ROOT_DIR, 'data', 'validate')
 MODEL_DIR    = os.path.join(ROOT_DIR, 'data', 'model_data')
 
 LR           = 0.002
-LR_MIN       = 1e-5
-LR_WARMUP_STEPS = 500
+LR_MIN       = 1e-6
+LR_WARMUP_STEPS = 1000
 WEIGHT_DECAY = 0.01
 GRAD_CLIP    = 1.0
 BATCH_SIZE   = 256
