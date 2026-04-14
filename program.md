@@ -87,6 +87,8 @@ c3d4e5f	7.501000	0.0	discard	switch to SGD optimizer
 d4e5f6g	0.000000	0.0	crash	double conv filters (OOM)
 ```
 
+add to the file after each run and keep it ordered chronologically.
+
 ## The experiment loop
 
 The experiment runs on a dedicated branch (e.g. `autoresearch/apr11`).
@@ -94,14 +96,15 @@ The experiment runs on a dedicated branch (e.g. `autoresearch/apr11`).
 LOOP FOREVER:
 
 1. Look at the git state: the current branch/commit we're on
-2. Tune `train.py` with an experimental idea by directly hacking the code. Look in the file weight_stats.txt - this has information on the weights in the network from the last run and you should use this to help with the tuning. weight_stats_best.txt file will have the stats from the best run for you to compare to.  In addition remember that this experiment is only running for a limited amount of time - but the real training will run for much longer - so only make changes that will also help with the longer training runs. If you need more detailed information add code to save_weight_stats function in train.py. Also you can add metrics to train.py to see where the code is slow as this may help you optimise the training loop.
-3. git commit
-4. Run the experiment: `uv run train.py > run.log 2>&1` (redirect everything — do NOT use tee or let output flood your context). In addition you can run nvidia-smi or "top -b -n 1"  on occasion to track bottlenecks to help with the tuning in step 2.
-5. Read out the results: `grep "^val_loss:\|^peak_vram_mb:" run.log`
-6. If the grep output is empty, the run crashed. Run `tail -n 50 run.log` to read the Python stack trace and attempt a fix. If you can't get things to work after more than a few attempts, give up.
-7. Record the results in the tsv (NOTE: do not commit the results.tsv file, leave it untracked by git)
-8. If val_loss improved (lower), you "advance" the branch, keeping the git commit. And copy the weights file "cp weight_stats.txt weight_stats_best.txt" so you have a copy of the stats for the weights of the best run to help in tuning.
-9. If val_loss is equal or worse, you git reset back to where you started
+2. Plan your tuning and add the plan to plan.md so we keep a chronalogical log of planning done. You are tuning to reduce the val_loss. Look in the file weights_stats.txt which has the network weights and compare to weight_stats_best.txt that has the weights from the best run to help you. Remember we are only running the experiments for a limited amount of time but want to optimise for longer training runs.
+3. Based on you plan tune `train.py` with an experimental idea by directly hacking the code. If you need more detailed information add code to save_weight_stats function in train.py. Also you can add metrics to train.py to see where the code is slow as this may help you optimise the training loop.
+4. git commit
+5. Run the experiment: `uv run train.py > run.log 2>&1` (redirect everything — do NOT use tee or let output flood your context). In addition you can run nvidia-smi or "top -b -n 1" on occasion to track bottlenecks to help with the planning in step 2.
+6. Read out the results: `grep "^val_loss:\|^peak_vram_mb:" run.log`
+7. If the grep output is empty, the run crashed. Run `tail -n 50 run.log` to read the Python stack trace and attempt a fix. If you can't get things to work after more than a few attempts, give up.
+8. Record the results in the tsv after every run (NOTE: do not commit the results.tsv file, leave it untracked by git)
+9. If val_loss improved (lower), you "advance" the branch, keeping the git commit. And copy the weights file "cp weight_stats.txt weight_stats_best.txt" so you have a copy of the stats for the weights of the best run to help in tuning.
+10. If val_loss is equal or worse, you git reset back to where you started
 
 The idea is that you are a completely autonomous researcher trying things out. If they work, keep. If they don't, discard. And you're advancing the branch so that you can iterate. If you feel like you're getting stuck in some way, you can rewind but you should probably do this very very sparingly (if ever).
 
