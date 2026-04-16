@@ -2,12 +2,27 @@
 
 This is an experiment to have the LLM do its own research on AlphaZero chess training.
 
-## Setup
+## Introduction
+
+There are 6 stages to follow. These are:
+
+1. Setup - does the initial setup of the experiment.
+2. Baseline - this is to run a baseline test of the model and get initial statistics.
+
+These steps are done in a loop continuously.
+3. Analysis and planning - in this step you should analyse the data in weights_stats.txt and write a plan in plan.md of the changes you will make in this loop.
+4. Coding - update train.py with the changes proposed in the plan.md file.
+5. Run the experiment - this is where you run the train.py script.
+6. Read out the results - extract the results from run.log.
+7. Update git. Either accept the change or revert the commit if it did not help.
+ 
+
+## 1. Setup
 
 To set up a new experiment, work with the user to:
 
 1. **Agree on a run tag**: propose a tag based on today's date (e.g. `apr11`). The branch `autoresearch/<tag>` must not already exist — this is a fresh run.
-2. **Create the branch**: `git checkout -b autoresearch/<tag>` from current master.
+2. **Create the branch**: `git checkout -b autoresearch/<tag>` from current branch.
 3. **Read the in-scope files**: The repo is small. Read these files for full context:
    - `README.md` — repository context.
    - `prepare.py` — fixed dataloader, evaluation, and data utilities. Do not modify.
@@ -16,19 +31,19 @@ To set up a new experiment, work with the user to:
 5. **Initialize results.tsv**: Create `results.tsv` with just the header row. The baseline will be recorded after the first run.
 6. **Confirm and go**: Confirm setup looks good.
 
-Once you get confirmation, kick off the experimentation.
+Once you get confirmation, proceed to Baseline.
 
-## Experimentation
+## 2. Baseline
 
-Each experiment trains ChessNet on self-play data for a **fixed time budget of 5 minutes** (wall clock training time, excluding startup). Evaluation runs for up to 1 minute on held-out validation files. You launch it simply as: `uv run train.py`.
+Run a baseline execution of the script:
+```
+uv run train.py > run.log 2>&1
+```
+Then read out the results and update `results.tsv` with the baseline results.
 
-**What you CAN do:**
-- Modify `train.py` — this is the only file you edit. Everything is fair game: network architecture, optimizer, hyperparameters, batch size, number of residual blocks, etc.
 
-**What you CANNOT do:**
-- Modify `prepare.py`. It is read-only. It contains the fixed evaluation harness, dataloader, and data utilities.
-- Install new packages or add dependencies. You can only use what's already in `pyproject.toml`.
-- Modify the evaluation harness. The `evaluate_loss` function in `prepare.py` is the ground truth metric.
+## 3. Analysis and planning
+
 
 **The goal is simple: get the lowest val_loss.** Since the time budget is fixed, you don't need to worry about training time — it's always 5 minutes. Everything is fair game: change the architecture, the optimizer, the hyperparameters, the batch size, the model size. The only constraint is that the code runs without crashing and finishes within the time budget.
 
@@ -36,7 +51,44 @@ Each experiment trains ChessNet on self-play data for a **fixed time budget of 5
 
 **Simplicity criterion**: All else being equal, simpler is better. A small improvement that adds ugly complexity is not worth it. Conversely, removing something and getting equal or better results is a great outcome — that's a simplification win. When evaluating whether to keep a change, weigh the complexity cost against the improvement magnitude. A 0.001 val_loss improvement that adds 20 lines of hacky code? Probably not worth it. A 0.001 val_loss improvement from deleting code? Definitely keep.
 
-**The first run**: Your very first run should always be to establish the baseline, so you will run the training script as is.
+
+In this step you will look in `run.log` for any errors or warnings.
+You will look in `weights_stats.txt` for statistics on the final weights of the model.
+You will then create a new `plan_<commitID>.md` file and populate this with you reasoning as to how we could reduce the val_loss by updating the code.
+Also include ideas in this document for how the weights_stats.txt file could be enhanced to improve the data you have to do the analysis next time through the loop.
+Only include one idea at a time in this plan. Always the one you think is the best. You can try other ideas in later loops.
+
+## 4. Coding
+
+**What you CAN do:**
+- Make changes to train.py to implement the fix. Everything is fair game: network architecture, optimizer, hyperparameters, batch size, number of residual blocks, etc.
+
+**What you CANNOT do:**
+- Modify `prepare.py`. It is read-only. It contains the fixed evaluation harness, dataloader, and data utilities.
+- Install new packages or add dependencies. You can only use what's already in `pyproject.toml`.
+- Modify the evaluation harness. The `evaluate_loss` function in `prepare.py` is the ground truth metric.
+
+## 5. Run the experiment
+
+Run the experiment: `uv run train.py > run.log 2>&1` (redirect everything — do NOT use tee or let output flood your context)
+
+**Timeout**: Each experiment should take ~6 minutes total (5 min training + 1 min eval + startup overhead). If a run exceeds 15 minutes, kill it and treat it as a failure (discard and revert).
+
+## 6. Read out the results
+
+Read out the results: `grep "^val_loss:\|^peak_vram_mb:" run.log`
+
+If the grep output is empty, the run crashed. Run `tail -n 50 run.log` to read the Python stack trace and attempt a fix. If you can't get things to work after more than a few attempts, give up.
+
+Record the results in the tsv (NOTE: do not commit the results.tsv file, leave it untracked by git)
+
+## 7. Update git
+
+If val_loss improved (lower), you "advance" the branch, keeping the git commit
+
+else If val_loss is equal or worse, you git reset back to where you started
+
+# Other Information
 
 ## Output format
 
@@ -68,47 +120,22 @@ When an experiment is done, log it to `results.tsv` (tab-separated, NOT comma-se
 The TSV has a header row and 5 columns:
 
 ```
-commit	val_loss	memory_gb	status	description
+date commit	val_loss	memory_gb	status	description
 ```
 
-1. git commit hash (short, 7 chars)
-2. val_loss achieved (e.g. 7.433287) — use 0.000000 for crashes
-3. peak memory in GB, round to .1f (e.g. 1.2 — divide peak_vram_mb by 1024) — use 0.0 for crashes
-4. status: `keep`, `discard`, or `crash`
-5. short text description of what this experiment tried
+1. date experment finished
+2. git commit hash (short, 7 chars)
+3. val_loss achieved (e.g. 7.433287) — use 0.000000 for crashes
+4. peak memory in GB, round to .1f (e.g. 1.2 — divide peak_vram_mb by 1024) — use 0.0 for crashes
+5. status: `keep`, `discard`, or `crash`
+6. short text description of what this experiment tried
 
 Example:
 
 ```
-commit	val_loss	memory_gb	status	description
-bde8fa3	7.433287	0.0	keep	baseline
-b2c3d4e	7.312000	0.1	keep	reduce residual blocks to 10
-c3d4e5f	7.501000	0.0	discard	switch to SGD optimizer
-d4e5f6g	0.000000	0.0	crash	double conv filters (OOM)
+date    commit	val_loss	memory_gb	status	description
+Thu Apr 16 14:43:13 CEST 2026   bde8fa3	7.433287	0.0	keep	baseline
+Thu Apr 16 14:43:13 CEST 2026   b2c3d4e	7.312000	0.1	keep	reduce residual blocks to 10
+Thu Apr 16 14:43:13 CEST 2026  c3d4e5f	7.501000	0.0	discard	switch to SGD optimizer
+Thu Apr 16 14:43:13 CEST 2026   d4e5f6g	0.000000	0.0	crash	double conv filters (OOM)
 ```
-
-## The experiment loop
-
-The experiment runs on a dedicated branch (e.g. `autoresearch/apr11`).
-
-LOOP FOREVER:
-
-1. Look at the git state: the current branch/commit we're on
-2. Tune `train.py` with an experimental idea by directly hacking the code.
-3. git commit
-4. Run the experiment: `uv run train.py > run.log 2>&1` (redirect everything — do NOT use tee or let output flood your context)
-5. Read out the results: `grep "^val_loss:\|^peak_vram_mb:" run.log`
-6. If the grep output is empty, the run crashed. Run `tail -n 50 run.log` to read the Python stack trace and attempt a fix. If you can't get things to work after more than a few attempts, give up.
-7. Record the results in the tsv (NOTE: do not commit the results.tsv file, leave it untracked by git)
-8. If val_loss improved (lower), you "advance" the branch, keeping the git commit
-9. If val_loss is equal or worse, you git reset back to where you started
-
-The idea is that you are a completely autonomous researcher trying things out. If they work, keep. If they don't, discard. And you're advancing the branch so that you can iterate. If you feel like you're getting stuck in some way, you can rewind but you should probably do this very very sparingly (if ever).
-
-**Timeout**: Each experiment should take ~6 minutes total (5 min training + 1 min eval + startup overhead). If a run exceeds 15 minutes, kill it and treat it as a failure (discard and revert).
-
-**Crashes**: If a run crashes (OOM, or a bug, or etc.), use your judgment: If it's something dumb and easy to fix (e.g. a typo, a missing import), fix it and re-run. If the idea itself is fundamentally broken, just skip it, log "crash" as the status in the tsv, and move on.
-
-**NEVER STOP**: Once the experiment loop has begun (after the initial setup), do NOT pause to ask the human if you should continue. Do NOT ask "should I keep going?" or "is this a good stopping point?". The human might be asleep, or gone from a computer and expects you to continue working *indefinitely* until you are manually stopped. You are autonomous. If you run out of ideas, think harder — re-read the in-scope files for new angles, try combining previous near-misses, try more radical architectural changes. The loop runs until the human interrupts you, period.
-
-As an example use case, a user might leave you running while they sleep. If each experiment takes ~6 minutes then you can run approx 10/hour, for a total of about 80 over the duration of the average human sleep. The user then wakes up to experimental results, all completed by you while they slept!
